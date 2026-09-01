@@ -48,7 +48,7 @@ private:
 
 
   // ----------------------------------------------------------
-  // Response buffer
+  // Response data
   // ----------------------------------------------------------
 
   String response = "";
@@ -60,18 +60,15 @@ private:
   // Timing
   // ----------------------------------------------------------
 
-  unsigned long commandStart = 0;
-
   unsigned long lastDataReceived = 0;
-
   unsigned long lastRequest = 0;
 
 
-  // Maximum time without receiving any new character
+  // Maximum time without receiving new data
   const unsigned long responseTimeout = 5000;
 
 
-  // Time between completed DPF requests
+  // Time between DPF requests
   const unsigned long requestInterval = 1000;
 
 
@@ -96,12 +93,8 @@ private:
     Serial.print("Sending: ");
     Serial.println(command);
 
-
     bt->print(command);
     bt->print("\r");
-
-
-    commandStart = millis();
 
     lastDataReceived = millis();
   }
@@ -118,7 +111,7 @@ private:
 
 
   // ==========================================================
-  // Check ELM327 error
+  // Check for ELM327 errors
   // ==========================================================
 
   bool responseContainsError() {
@@ -127,38 +120,27 @@ private:
 
     upperResponse.toUpperCase();
 
-
     return (
-
       upperResponse.indexOf("CAN ERROR") >= 0 ||
-
       upperResponse.indexOf("UNABLE TO CONNECT") >= 0 ||
-
       upperResponse.indexOf("STOPPED") >= 0
     );
   }
 
 
   // ==========================================================
-  // Print response to Serial Monitor
+  // Print response to Serial
   // ==========================================================
 
   void printResponseToSerial(const char* title) {
 
     Serial.println();
-
     Serial.println("==============================");
-
     Serial.println(title);
-
     Serial.println("------------------------------");
-
     Serial.print(response);
-
     Serial.println();
-
     Serial.println("==============================");
-
     Serial.println();
   }
 
@@ -171,24 +153,13 @@ private:
 
     String cleaned = response;
 
-
-    // Remove ELM327 formatting
     cleaned.replace("\r", " ");
     cleaned.replace("\n", " ");
     cleaned.replace(">", " ");
 
-
     cleaned.toUpperCase();
 
-
-    // --------------------------------------------------------
-    // Find expected response
-    //
-    // 41 78 00 05 DC 05 DC
-    // --------------------------------------------------------
-
     int pos = cleaned.indexOf("41 78");
-
 
     if (pos < 0) {
 
@@ -204,7 +175,6 @@ private:
 
 
     Serial.print("DPF data after PID: ");
-
     Serial.println(data);
 
 
@@ -220,22 +190,13 @@ private:
 
 
     while (
-
       start < data.length() &&
-
       byteCount < 16
-
     ) {
 
-
-      // Skip spaces
-
       while (
-
         start < data.length() &&
-
         data[start] == ' '
-
       ) {
 
         start++;
@@ -266,15 +227,10 @@ private:
 
         char* endPtr;
 
-
         long value = strtol(
-
           token.c_str(),
-
           &endPtr,
-
           16
-
         );
 
 
@@ -292,11 +248,12 @@ private:
 
 
     // --------------------------------------------------------
-    // We need at least:
+    // Expected data:
     //
-    // 00 05 DC
+    // 41 78 00 05 DC 05 DC
     //
-    // after 41 78
+    // D = 05
+    // E = DC
     // --------------------------------------------------------
 
     if (byteCount < 3) {
@@ -307,37 +264,22 @@ private:
     }
 
 
-    // --------------------------------------------------------
-    // Current confirmed format:
-    //
-    // 41 78 00 05 DC 05 DC
-    //
-    // The temperature is:
-    //
-    // D = 05
-    // E = DC
-    //
-    // Formula:
-    //
-    // ((D * 256 + E) / 10) - 40
-    // --------------------------------------------------------
-
     uint8_t d = bytes[1];
 
     uint8_t e = bytes[2];
 
 
     int rawValue =
-
       ((int)d * 256) +
-
       (int)e;
 
 
+    // Formula:
+    //
+    // ((D * 256 + E) / 10) - 40
+
     dpfTemperature =
-
       ((float)rawValue / 10.0f) -
-
       40.0f;
 
 
@@ -349,11 +291,8 @@ private:
     // --------------------------------------------------------
 
     Serial.println();
-
     Serial.println("DPF TEMPERATURE");
-
     Serial.println("------------------------------");
-
 
     Serial.print("D = 0x");
 
@@ -376,33 +315,19 @@ private:
 
 
     Serial.print("Raw value = ");
-
     Serial.println(rawValue);
 
 
     Serial.print("Temperature = ");
-
     Serial.print(dpfTemperature, 1);
-
     Serial.println(" C");
 
 
     Serial.println("------------------------------");
-
     Serial.println();
 
 
     return true;
-  }
-
-
-  // ==========================================================
-  // Start next DPF request
-  // ==========================================================
-
-  void startNextDPFRequest() {
-
-    state = ELM_SEND_DPF_REQUEST;
   }
 
 
@@ -417,21 +342,15 @@ public:
 
     bt = &bluetooth;
 
-
     state = ELM_SEND_ATZ;
-
 
     response = "";
 
     elmVersion = "";
 
-
     dpfTemperature = NAN;
 
     temperatureValid = false;
-
-
-    commandStart = millis();
 
     lastDataReceived = millis();
 
@@ -439,9 +358,7 @@ public:
 
 
     Serial.println();
-
     Serial.println("ELM327 initialization started");
-
     Serial.println();
   }
 
@@ -451,7 +368,6 @@ public:
   // ==========================================================
 
   void update() {
-
 
     if (bt == nullptr) {
 
@@ -470,28 +386,15 @@ public:
 
       char c = bt->read();
 
-
       response += c;
 
-
       Serial.write(c);
-
 
       receivedData = true;
     }
 
 
-    // --------------------------------------------------------
-    // IMPORTANT:
-    //
-    // Reset timeout whenever ANY new data arrives.
-    //
-    // This prevents:
-    //
-    // SEARCHING...
-    //
-    // from causing a false timeout.
-    // --------------------------------------------------------
+    // Reset timeout whenever data is received
 
     if (receivedData) {
 
@@ -521,28 +424,21 @@ public:
 
       case ELM_WAIT_ATZ:
 
-
         if (responseReceived()) {
 
           printResponseToSerial("ATZ RESPONSE");
 
-
           state = ELM_SEND_ATI;
         }
 
-
         else if (
-
           millis() - lastDataReceived >= responseTimeout
-
         ) {
 
           printResponseToSerial("ATZ TIMEOUT");
 
-
           state = ELM_ERROR;
         }
-
 
         break;
 
@@ -562,31 +458,23 @@ public:
 
       case ELM_WAIT_ATI:
 
-
         if (responseReceived()) {
 
           elmVersion = response;
 
-
           printResponseToSerial("ATI RESPONSE");
-
 
           state = ELM_SEND_ATSP0;
         }
 
-
         else if (
-
           millis() - lastDataReceived >= responseTimeout
-
         ) {
 
           printResponseToSerial("ATI TIMEOUT");
 
-
           state = ELM_ERROR;
         }
-
 
         break;
 
@@ -606,28 +494,21 @@ public:
 
       case ELM_WAIT_ATSP0:
 
-
         if (responseReceived()) {
 
           printResponseToSerial("ATSP0 RESPONSE");
 
-
           state = ELM_SEND_ATSH;
         }
 
-
         else if (
-
           millis() - lastDataReceived >= responseTimeout
-
         ) {
 
           printResponseToSerial("ATSP0 TIMEOUT");
 
-
           state = ELM_ERROR;
         }
-
 
         break;
 
@@ -647,86 +528,57 @@ public:
 
       case ELM_WAIT_ATSH:
 
-
         if (responseReceived()) {
 
           printResponseToSerial("ATSH7E0 RESPONSE");
 
-
           lastRequest = 0;
-
 
           state = ELM_SEND_DPF_REQUEST;
         }
 
-
         else if (
-
           millis() - lastDataReceived >= responseTimeout
-
         ) {
 
           printResponseToSerial("ATSH7E0 TIMEOUT");
 
-
           state = ELM_ERROR;
         }
-
 
         break;
 
 
       // ======================================================
-      // Send 0178
+      // Send DPF request
       // ======================================================
 
       case ELM_SEND_DPF_REQUEST:
 
         sendCommand("0178");
 
-
         state = ELM_WAIT_DPF_RESPONSE;
-
 
         break;
 
 
       // ======================================================
-      // Wait for 0178 response
+      // Wait for DPF response
       // ======================================================
 
       case ELM_WAIT_DPF_RESPONSE:
 
-
-        // ----------------------------------------------------
-        // Complete response
-        // ----------------------------------------------------
-
         if (responseReceived()) {
 
-
           printResponseToSerial(
-
             "DPF 0178 RESPONSE"
           );
 
 
-          // Parse temperature
-
           if (parseTemperature()) {
 
-            Serial.print(
-
-              "Selected DPF temperature: "
-            );
-
-            Serial.print(
-
-              dpfTemperature,
-
-              1
-            );
-
+            Serial.print("DPF temperature: ");
+            Serial.print(dpfTemperature, 1);
             Serial.println(" C");
           }
 
@@ -736,71 +588,40 @@ public:
           }
 
 
-          // Save completion time
-
           lastRequest = millis();
-
-
-          // Go to ready state
 
           state = ELM_READY;
         }
 
-
-        // ----------------------------------------------------
-        // Explicit ELM error
-        // ----------------------------------------------------
 
         else if (responseContainsError()) {
 
-
           printResponseToSerial(
-
             "DPF 0178 ERROR RESPONSE"
           );
 
-
           temperatureValid = false;
 
-
           lastRequest = millis();
-
 
           state = ELM_READY;
         }
 
 
-        // ----------------------------------------------------
-        // Timeout
-        //
-        // IMPORTANT:
-        //
-        // Timeout is measured from the LAST received byte,
-        // not from the moment the command was sent.
-        // ----------------------------------------------------
-
         else if (
-
           millis() - lastDataReceived >= responseTimeout
-
         ) {
 
-
           printResponseToSerial(
-
             "DPF 0178 TIMEOUT"
           );
 
-
           temperatureValid = false;
-
 
           lastRequest = millis();
 
-
           state = ELM_READY;
         }
-
 
         break;
 
@@ -811,25 +632,13 @@ public:
 
       case ELM_READY:
 
-
-        /*
-         * Wait 10 seconds after the previous completed
-         * request before starting another one.
-         *
-         * No delay() is used.
-         */
-
         if (
-
           lastRequest != 0 &&
-
           millis() - lastRequest >= requestInterval
-
         ) {
 
-          startNextDPFRequest();
+          state = ELM_SEND_DPF_REQUEST;
         }
-
 
         break;
 
@@ -839,13 +648,6 @@ public:
       // ======================================================
 
       case ELM_ERROR:
-
-
-        /*
-         * Stop here.
-         *
-         * We can add automatic recovery later.
-         */
 
         break;
 
@@ -858,22 +660,12 @@ public:
 
 
   // ==========================================================
-  // Get current state
+  // Get state
   // ==========================================================
 
   ELMState getState() {
 
     return state;
-  }
-
-
-  // ==========================================================
-  // Get ELM327 version
-  // ==========================================================
-
-  String getVersion() {
-
-    return elmVersion;
   }
 
 
@@ -888,7 +680,17 @@ public:
 
 
   // ==========================================================
-  // Check if ELM327 is ready
+  // Get ELM327 version
+  // ==========================================================
+
+  String getVersion() {
+
+    return elmVersion;
+  }
+
+
+  // ==========================================================
+  // Check ready state
   // ==========================================================
 
   bool isReady() {
@@ -898,7 +700,7 @@ public:
 
 
   // ==========================================================
-  // Check for error
+  // Check error state
   // ==========================================================
 
   bool hasError() {
@@ -925,7 +727,6 @@ public:
 
     return dpfTemperature;
   }
-
 };
 
 
