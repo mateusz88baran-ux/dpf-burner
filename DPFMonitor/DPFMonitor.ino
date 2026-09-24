@@ -41,6 +41,7 @@ ELM327Manager elm327;
 bool bluetoothStarted = false;
 bool elm327Started = false;
 bool normalOperationStarted = false;
+bool bluetoothConnectedSoundPlayed = false;
 
 
 // ============================================================
@@ -63,45 +64,86 @@ const float REGEN_END_TEMPERATURE = 450.0;
 
 
 // Temperature must remain above 500 C
-// for 15 seconds to confirm regeneration.
+// for 60 seconds to confirm regeneration.
 
-const unsigned long REGEN_START_TIME = 15000;
+const unsigned long REGEN_START_TIME = 60000;
 
 
 // Temperature must remain below 450 C
-// for 30 seconds to finish regeneration.
+// for 60 seconds to finish regeneration.
 
-const unsigned long REGEN_END_TIME = 30000;
+const unsigned long REGEN_END_TIME = 60000;
 
 
 // ============================================================
 // Buzzer configuration
 // ============================================================
 
-// Buzzer is disabled for now.
-// Enable it after physically connecting the buzzer.
+#define BUZZER_ENABLED true
+#define BUZZER_PIN 33
 
-#define BUZZER_ENABLED false
-
-#define BUZZER_PIN 25
+#define BUZZER_FREQUENCY 2600
+#define BUZZER_RESOLUTION 8
+#define BUZZER_VOLUME 20
 
 
 // ============================================================
 // Buzzer helper
 // ============================================================
 
-void buzzerBeep(
-  int frequency,
-  int duration
-) {
+void buzzerOn() {
 
 #if BUZZER_ENABLED
 
-  tone(
+  ledcWrite(
     BUZZER_PIN,
-    frequency,
-    duration
+    BUZZER_VOLUME
   );
+
+#endif
+}
+
+
+void buzzerOff() {
+
+#if BUZZER_ENABLED
+
+  ledcWrite(
+    BUZZER_PIN,
+    0
+  );
+
+#endif
+}
+
+
+void buzzerSignal(unsigned long duration) {
+
+#if BUZZER_ENABLED
+
+  buzzerOn();
+
+  delay(duration);
+
+  buzzerOff();
+
+#endif
+}
+
+
+// ============================================================
+// Bluetooth connection sound
+// ============================================================
+
+void playBluetoothConnectedSound() {
+
+#if BUZZER_ENABLED
+
+  buzzerSignal(500);
+
+  delay(250);
+
+  buzzerSignal(500);
 
 #endif
 }
@@ -115,15 +157,19 @@ void playRegenerationStartSound() {
 
 #if BUZZER_ENABLED
 
-  buzzerBeep(1200, 200);
-
+  buzzerSignal(1000);
   delay(250);
 
-  buzzerBeep(1200, 200);
-
+  buzzerSignal(1000);
   delay(250);
 
-  buzzerBeep(1600, 400);
+  buzzerSignal(1000);
+  delay(250);
+
+  buzzerSignal(1000);
+  delay(250);
+
+  buzzerSignal(2000);
 
 #endif
 }
@@ -137,11 +183,19 @@ void playRegenerationEndSound() {
 
 #if BUZZER_ENABLED
 
-  buzzerBeep(1600, 400);
+  buzzerSignal(2000);
+  delay(250);
 
-  delay(300);
+  buzzerSignal(1000);
+  delay(250);
 
-  buzzerBeep(1200, 200);
+  buzzerSignal(1000);
+  delay(250);
+
+  buzzerSignal(1000);
+  delay(250);
+
+  buzzerSignal(1000);
 
 #endif
 }
@@ -603,10 +657,13 @@ void setup() {
 
 #if BUZZER_ENABLED
 
-  pinMode(
+  ledcAttach(
     BUZZER_PIN,
-    OUTPUT
+    BUZZER_FREQUENCY,
+    BUZZER_RESOLUTION
   );
+
+  buzzerOff();
 
 #endif
 
@@ -691,6 +748,18 @@ void loop() {
     Serial.println(
       "Bluetooth connection established."
     );
+
+
+    // --------------------------------------------------------
+    // Signal successful Bluetooth connection once
+    // --------------------------------------------------------
+
+    if (!bluetoothConnectedSoundPlayed) {
+
+      playBluetoothConnectedSound();
+
+      bluetoothConnectedSoundPlayed = true;
+    }
 
 
     // --------------------------------------------------------
